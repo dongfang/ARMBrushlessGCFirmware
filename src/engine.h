@@ -20,6 +20,7 @@ extern int debugRC;
 extern int debugOrient;
 extern int debugSetpoints;
 extern int debugAutoPan;
+extern int debugGravityVector;
 
 void Init_Orientation(void);
 void engineProcess(float dt);

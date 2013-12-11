@@ -27,6 +27,7 @@ int debugCnt     = 0;
 int debugRC      = 0;
 int debugOrient  = 0;
 int debugSetpoints = 0;
+int debugGravityVector = 0;
 int debugAutoPan = 0;
 
 float /*pitch, Gyro_Pitch_angle,*/ pitch_setpoint = 0.0f, pitch_Error_last = 0.0f,  pitch_angle_correction;
@@ -175,9 +176,10 @@ void rotateV(float* v, float* rates, float dt) {
 	  deltas[i] = rates[i]*dt;
 	  tmp[i] = v[i];
   }
-  v[Z_AXIS] -= deltas[ROLL]  * tmp[X_AXIS] + deltas[PITCH] * tmp[Y_AXIS];
-  v[X_AXIS] += deltas[ROLL]  * tmp[Z_AXIS] - deltas[YAW]   * tmp[Y_AXIS];
-  v[Y_AXIS] += deltas[PITCH] * tmp[Z_AXIS] + deltas[YAW]   * tmp[X_AXIS];
+
+  v[X_AXIS] += deltas[PITCH] * tmp[Z_AXIS] - deltas[YAW]   * tmp[Y_AXIS];
+  v[Y_AXIS] += deltas[ROLL] *  tmp[Z_AXIS] + deltas[YAW]   * tmp[X_AXIS];
+  v[Z_AXIS] -= deltas[PITCH] * tmp[X_AXIS] + deltas[ROLL]  * tmp[Y_AXIS];
 }
 
 void MergeAcc(float alpha) {
@@ -198,17 +200,16 @@ void ComputeEulerAngles(float dt) {
     // Normal attitude angles come from the rotation from global in order yaw, pitch, roll (roll on pitch on yaw)
     // Camera gimbals are typically pitch on roll on yaw. Not the same!
     // Therefore, we reverse the definitions and domains of pitch and roll. Formulas too.
-	CameraOrient[ROLL] = -atan2(ApproxGravityVector[X_AXIS] ,
+	CameraOrient[ROLL] = atan2(ApproxGravityVector[X_AXIS] ,
 			sqrtf(ApproxGravityVector[Z_AXIS]*ApproxGravityVector[Z_AXIS] +
 					ApproxGravityVector[Y_AXIS]*ApproxGravityVector[Y_AXIS]));
 	CameraOrient[PITCH] = atan2(ApproxGravityVector[Y_AXIS], ApproxGravityVector[Z_AXIS]);
-	CameraOrient[YAW] += GyroData[YAW] * dt; //Yaw. TODO: High pass filter this sucker.
+	CameraOrient[YAW] -= GyroData[YAW] * dt; //Yaw. TODO: High pass filter this sucker.
 }
 
 void Init_Orientation()
 {
     int init_loops = 150;
-    float AccAngle[NUMAXES];
     int i;
 
     for (i = 0; i < init_loops; i++)
@@ -226,7 +227,7 @@ void Update_Orientation(float dt) {
 	// First, apply small-angle approximation to our estimated gravity vector:
 	rotateV(ApproxGravityVector, GyroData, dt);
 	// Then complementary-filter that together with the acc. meter's data:
-	MergeAcc(0.01); // TODO: Make this magic number configurable It is very useful to
+	MergeAcc(1); // TODO: Make this magic number configurable It is very useful to
 	// have different values to choose from. High->IMU returns quickly to a good attitude
 	// after having been knocked and gyros saturated. Low->less sensitive to lateral accelerations,
 	// such as a fixed-wing plane at high power or in a turn.
@@ -374,7 +375,13 @@ void engineProcess(float dt)
         if (debugOrient)
         {
             print("Roll:%12.4f | Pitch:%12.4f | Yaw:%12.4f\r\n",
-                  CameraOrient[ROLL], CameraOrient[PITCH], CameraOrient[YAW]);
+                  CameraOrient[ROLL]*R2D, CameraOrient[PITCH]*R2D, CameraOrient[YAW]*R2D);
+        }
+
+        if (debugGravityVector)
+        {
+            print("X:%12.4f | Y:%12.4f | Z:%12.4f\r\n",
+                  ApproxGravityVector[0], ApproxGravityVector[1], ApproxGravityVector[2]);
         }
 
         if (debugSetpoints)

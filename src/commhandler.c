@@ -123,6 +123,11 @@ void CommHandler(void) //UART4 Interrupt handler implementation
                 print("Orientation messages %s\r\n", debugOrient ? "on" : "off");
                 break;
 
+            case 'O':
+                debugGravityVector ^= 1;
+                print("GVector messages %s\r\n", debugGravityVector ? "on" : "off");
+                break;
+
             case 'S':
                 debugSetpoints ^= 1;
                 print("Setpoints messages %s\r\n", debugSetpoints ? "on" : "off");

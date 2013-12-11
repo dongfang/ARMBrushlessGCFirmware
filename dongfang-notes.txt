@@ -9,6 +9,18 @@ First: Nose diving positive
 Second: CCW as seen from behind positive
 Third:  CCW as seen from above positive
 
-
-
 EvvGC attitudes (original):
+Roll: LHS down positive
+Pitch: Nose down positive
+Yaw: CW as seem from above positive
+
+EvvGC attitudes (mine):
+Roll: LHS down positive
+Pitch: Nose down positive
+Yaw: CW as seem from above positive
+
+
+Gyro @ Martinez
+First: CCW as seen from behind positive
+Second: Nose diving positive
+Third:  CCW as seen from above positive
