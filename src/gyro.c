@@ -222,6 +222,8 @@ void MPU6050_ACC_get(float *AccData)
 
     if (I2Cerror == 0)
     {
+        float accScaleFactor = 7505.747116f;// 8000.0f;//     2.0F/131.0F * M_PI/180.0F;
+
         AccData[X_AXIS] = (short)((read[0] << 8) | read[1]);
         AccData[Y_AXIS] = (short)((read[2] << 8) | read[3]);
         AccData[Z_AXIS] = (short)((read[4] << 8) | read[5]);

@@ -26,6 +26,7 @@ int debugSense   = 0;
 int debugCnt     = 0;
 int debugRC      = 0;
 int debugOrient  = 0;
+int debugSetpoints = 0;
 int debugAutoPan = 0;
 
 float /*pitch, Gyro_Pitch_angle,*/ pitch_setpoint = 0.0f, pitch_Error_last = 0.0f,  pitch_angle_correction;
@@ -38,16 +39,18 @@ static float rollRCOffset = 0.0f, pitchRCOffset = 0.0f, yawRCOffset = 0.0f;
 
 static int printcounter = 0;
 
-float Output[EULAR];
+float Output[EULER];
+float CameraOrient[EULER];
+//float AccAngleSmooth[EULER];
 
-float CameraOrient[EULAR];
-float AccAngleSmooth[EULAR];
+float AccData[NUMAXES]  = {0.0f, 0.0f, 0.0f};
+float GyroData[NUMAXES] = {0.0f, 0.0f, 0.0f};
+float ApproxGravityVector[NUMAXES]  = {0.0f, 0.0f, 1.0f};
 
-float AccData[NUMAXIS]  = {0.0f, 0.0f, 0.0f};
-float GyroData[NUMAXIS] = {0.0f, 0.0f, 0.0f};
+float Step[NUMAXES]     = {0.0f, 0.0f, 0.0f};
+float RCSmooth[NUMAXES] = {0.0f, 0.0f, 0.0f};
 
-float Step[NUMAXIS]     = {0.0f, 0.0f, 0.0f};
-float RCSmooth[NUMAXIS] = {0.0f, 0.0f, 0.0f};
+//void mergeACC(float* v, float* acc, float alpha);
 
 void roll_PID(void)
 {
@@ -114,11 +117,11 @@ float Limit_Pitch(float step, float pitch)
     return step;
 }
 
+/*
 void Init_Orientation()
 {
-
     int init_loops = 150;
-    float AccAngle[NUMAXIS];
+    float AccAngle[NUMAXES];
     int i;
 
     for (i = 0; i < init_loops; i++)
@@ -137,11 +140,12 @@ void Init_Orientation()
     CameraOrient[ROLL]  = AccAngleSmooth[ROLL];
     CameraOrient[YAW]   = 0.0f;
 }
+*/
 
-void Get_Orientation(float *SmoothAcc, float *Orient, float *AccData, float *GyroData, float dt)
-{
-    float AccAngle[EULAR];
-    float GyroRate[EULAR];
+/*
+void Get_Orientation(float *SmoothAcc, float *Orient, float *AccData, float *GyroData, float dt) {
+    float AccAngle[EULER];
+    float GyroRate[EULER];
 
     //AccAngle[ROLL]  = -(atan2f(AccData[X_AXIS], AccData[Z_AXIS]));   //Calculating roll ACC angle
     AccAngle[ROLL]  = -(atan2f(AccData[X_AXIS], sqrtf( AccData[Z_AXIS] * AccData[Z_AXIS] + AccData[Y_AXIS] * AccData[Y_AXIS])));   //Calculating roll ACC angle
@@ -159,6 +163,75 @@ void Get_Orientation(float *SmoothAcc, float *Orient, float *AccData, float *Gyr
     GyroRate[YAW]  = -GyroData[Z_AXIS] * cosf(fabsf(Orient[PITCH])) - GyroData[Y_AXIS] * sinf(Orient[PITCH]); //presuming Roll is horizontal
     Orient[YAW]    = (Orient[YAW] + GyroRate[YAW] * dt); //Yaw
 }
+*/
+
+// The usual small-angle approximation.
+void rotateV(float* v, float* rates, float dt) {
+  float tmp[NUMAXES];
+  // The small rotation rate deltas.
+  float deltas[NUMAXES];
+  uint8_t i;
+  for (i=0; i<3; i++) {
+	  deltas[i] = rates[i]*dt;
+	  tmp[i] = v[i];
+  }
+  v[Z_AXIS] -= deltas[ROLL]  * tmp[X_AXIS] + deltas[PITCH] * tmp[Y_AXIS];
+  v[X_AXIS] += deltas[ROLL]  * tmp[Z_AXIS] - deltas[YAW]   * tmp[Y_AXIS];
+  v[Y_AXIS] += deltas[PITCH] * tmp[Z_AXIS] + deltas[YAW]   * tmp[X_AXIS];
+}
+
+void MergeAcc(float alpha) {
+  uint8_t axis;
+  // Apply complimentary filter (Gyro drift correction)
+  // If accel magnitude >1.4G or <0.6G and ACC vector outside of the limit range => we neutralize the effect of accelerometers in the angle estimation.
+  // To do that, we just skip filter, as EstV already rotated by Gyro
+  //  if (( 36 < accMag && accMag < 196 ) || disableAccGtest) {
+    for (axis = 0; axis < 3; axis++) {
+      //utilLP_float(&EstG.A[axis], accLPF[axis], AccComplFilterConst);
+      ApproxGravityVector[axis] = ApproxGravityVector[axis] * (1.0 - alpha) +
+    		  AccData[axis] * alpha;
+    }
+  //  }
+}
+
+void ComputeEulerAngles(float dt) {
+    // Normal attitude angles come from the rotation from global in order yaw, pitch, roll (roll on pitch on yaw)
+    // Camera gimbals are typically pitch on roll on yaw. Not the same!
+    // Therefore, we reverse the definitions and domains of pitch and roll. Formulas too.
+	CameraOrient[ROLL] = -atan2(ApproxGravityVector[X_AXIS] ,
+			sqrtf(ApproxGravityVector[Z_AXIS]*ApproxGravityVector[Z_AXIS] +
+					ApproxGravityVector[Y_AXIS]*ApproxGravityVector[Y_AXIS]));
+	CameraOrient[PITCH] = atan2(ApproxGravityVector[Y_AXIS], ApproxGravityVector[Z_AXIS]);
+	CameraOrient[YAW] += GyroData[YAW] * dt; //Yaw. TODO: High pass filter this sucker.
+}
+
+void Init_Orientation()
+{
+    int init_loops = 150;
+    float AccAngle[NUMAXES];
+    int i;
+
+    for (i = 0; i < init_loops; i++)
+    {
+        MPU6050_ACC_get(AccData); //Getting Accelerometer data
+        MergeAcc(0.1);
+        Delay_ms(1);
+    }
+
+    CameraOrient[YAW]   = 0.0f;
+    ComputeEulerAngles(0);
+}
+
+void Update_Orientation(float dt) {
+	// First, apply small-angle approximation to our estimated gravity vector:
+	rotateV(ApproxGravityVector, GyroData, dt);
+	// Then complementary-filter that together with the acc. meter's data:
+	MergeAcc(0.01); // TODO: Make this magic number configurable It is very useful to
+	// have different values to choose from. High->IMU returns quickly to a good attitude
+	// after having been knocked and gyros saturated. Low->less sensitive to lateral accelerations,
+	// such as a fixed-wing plane at high power or in a turn.
+	ComputeEulerAngles(dt);
+}
 
 //---------------------YAW autopan----------------------//
 //#define ANGLE2SETPOINT -1000
@@ -174,7 +247,6 @@ float step        = 0.0f;
 
 float autoPan(float motorPos, float setpoint)
 {
-
     if (motorPos < centerPoint - DEADBAND)
     {
         centerPoint = (+DEADBAND);
@@ -205,14 +277,15 @@ void engineProcess(float dt)
     DEBUG_LEDoff();
 
     StopWatchInit(&sw);
-    MPU6050_ACC_get(AccData); // Getting Accelerometer data
+    MPU6050_ACC_get(AccData); // Getting Accelerometer data.
+    // dongfang comment: We don't need to do this all that often really.
     unsigned long tAccGet = StopWatchLap(&sw);
 
     MPU6050_Gyro_get(GyroData); // Getting Gyroscope data
     unsigned long tGyroGet = StopWatchLap(&sw);
 
-    // This is very very simple!
-    Get_Orientation(AccAngleSmooth, CameraOrient, AccData, GyroData, dt);
+    // dongfang: Major change here.
+    Update_Orientation(dt);
     unsigned long tAccAngle = StopWatchLap(&sw);
 
     // if we enable RC control
@@ -299,6 +372,12 @@ void engineProcess(float dt)
         }
 
         if (debugOrient)
+        {
+            print("Roll:%12.4f | Pitch:%12.4f | Yaw:%12.4f\r\n",
+                  CameraOrient[ROLL], CameraOrient[PITCH], CameraOrient[YAW]);
+        }
+
+        if (debugSetpoints)
         {
             print("Roll_setpoint:%12.4f | Pitch_setpoint:%12.4f | Yaw_setpoint:%12.4f\r\n",
                   roll_setpoint, pitch_setpoint, yaw_setpoint);

@@ -8,14 +8,22 @@
 #ifndef DEFINITIONS_H_
 #define DEFINITIONS_H_
 
-enum
+typedef enum
 {
     X_AXIS,
     Y_AXIS,
     Z_AXIS,
-};
+    NUMAXES // is 3
+} tAxisEnum;
 
-#define EULAR 3
+
+typedef enum
+{
+    ROLL,
+    PITCH,
+    YAW,
+    EULER // is 3
+} tEulerEnum;
 
 #define R2D 57.3F
 #define D2R 0.01745329

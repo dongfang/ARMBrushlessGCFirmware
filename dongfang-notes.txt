@@ -1,0 +1,14 @@
+EvvGC Sensor Data
+Acc: Very high numbers, unscaled?
+X: RHS down positive
+Y: Nose down positive
+Z: Bottom down positive
+
+Gyro: Looks like rad/s
+First: Nose diving positive
+Second: CCW as seen from behind positive
+Third:  CCW as seen from above positive
+
+
+
+EvvGC attitudes (original):

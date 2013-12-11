@@ -18,13 +18,10 @@ extern int debugSense;
 extern int debugCnt;
 extern int debugRC;
 extern int debugOrient;
+extern int debugSetpoints;
 extern int debugAutoPan;
 
 void Init_Orientation(void);
 void engineProcess(float dt);
-void Get_Orientation(float *AccAngleSmooth, float *Orient, float *AccData, float *GyroData, float dt);
+//void Update_Orientation(float dt);
 #endif /* ENGINE_H_ */
-
-
-
-

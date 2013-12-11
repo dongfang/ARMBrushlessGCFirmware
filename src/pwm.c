@@ -42,9 +42,9 @@ float testPhase = -0.09;
 static int g_YawOff = 1;
 static int g_Roll[3], g_Pitch[3], g_Yaw[3];
 
-int MaxCnt[NUMAXIS];
-int MinCnt[NUMAXIS];
-int IrqCnt[NUMAXIS];
+int MaxCnt[NUMAXES];
+int MinCnt[NUMAXES];
+int IrqCnt[NUMAXES];
 
 void MaxCntClear(void)
 {
@@ -193,7 +193,7 @@ void SetYawMotor(float phi, int power)
     ActivateIRQ(TIM5);
 }
 
-inline void UpdateCounter(tAxis channel, int value)
+inline void UpdateCounter(uint8_t channel, int value)
 {
     IrqCnt[channel]++;
 
