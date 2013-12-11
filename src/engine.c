@@ -211,6 +211,7 @@ void engineProcess(float dt)
     MPU6050_Gyro_get(GyroData); // Getting Gyroscope data
     unsigned long tGyroGet = StopWatchLap(&sw);
 
+    // This is very very simple!
     Get_Orientation(AccAngleSmooth, CameraOrient, AccData, GyroData, dt);
     unsigned long tAccAngle = StopWatchLap(&sw);
 
@@ -223,14 +224,16 @@ void engineProcess(float dt)
     }
 
     // Pitch adjustments
-    //pitch_setpoint += Step[PITCH];
+    // pitch_setpoint += Step[PITCH];
+    // This is where the dreaded RC integration takes place.
     pitchRCOffset += Step[PITCH] / 1000.0;
 
     pitch_angle_correction = constrain((CameraOrient[PITCH] + pitchRCOffset) * R2D, -CORRECTION_STEP, CORRECTION_STEP);
     pitch_setpoint += pitch_angle_correction; // Pitch return to zero after collision
 
     // Roll Adjustments
-    //roll_setpoint += Step[ROLL];
+    // roll_setpoint += Step[ROLL];
+    // This is where the dreaded RC integration takes place.
     rollRCOffset += Step[ROLL] / 1000.0;
 
     // include the config roll offset which is scaled to 0 = -10.0 degrees, 100 = 0.0 degrees, and 200 = 10.0 degrees

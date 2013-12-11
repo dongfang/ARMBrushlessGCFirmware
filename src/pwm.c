@@ -210,6 +210,7 @@ inline void UpdateCounter(tAxis channel, int value)
 
 #define MAX_CNT (PWM_PERIODE * 8 / 10)
 
+// 5 is a general timer, almost same as advanced.
 void TIM5_IRQHandler(void) // yaw axis
 {
     if (TIM5->SR & TIM_SR_UIF) // if UIF flag is set
@@ -251,6 +252,7 @@ void TIM5_IRQHandler(void) // yaw axis
     }
 }
 
+// 1 is an advanced timer.
 void TIM1_UP_IRQHandler(void) // pitch axis
 {
     TIM1->SR &= ~TIM_SR_UIF; // clear UIF flag
@@ -271,6 +273,7 @@ void TIM1_UP_IRQHandler(void) // pitch axis
     __enable_irq();
 }
 
+// 8 is an advanced timer.
 void TIM8_UP_IRQHandler(void) // roll axis
 {
     TIM8->SR &= ~TIM_SR_UIF; // clear UIF flag
@@ -302,6 +305,7 @@ static void Timer_Channel_Config(TIM_TypeDef *tim, TIM_OCInitTypeDef *OCInitStru
     TIM_OC3PreloadConfig(tim, TIM_OCPreload_Enable);
 }
 
+// The advanced timers 1 and 8 are configured with this one.
 static void Timer_PWM_Advanced_Config(TIM_TypeDef *tim)
 {
     TIM_TimeBaseInitTypeDef     TIM_TimeBaseInitStructure;

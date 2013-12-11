@@ -8,7 +8,9 @@
 #ifndef PWM_H_
 #define PWM_H_
 
-#define PWM_PERIODE 1000
+// 1000 -> 18 kHz I believe. Prescale is 3, 72M/3/1000 = 18k
+//define PWM_PERIODE 1000
+#define PWM_PERIODE 1200
 
 typedef enum
 {
