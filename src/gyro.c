@@ -14,8 +14,23 @@
 #include "definitions.h"
 #include "engine.h"
 
-static float gyroADC_ROLL_offset, gyroADC_PITCH_offset, gyroADC_YAW_offset;
-static short int gyroADC_PITCH, gyroADC_ROLL, gyroADC_YAW;
+static float gyroADCOffset[3];
+static short int gyroADC[3];
+
+// TODO! Make confgurable.
+
+// This is my (dongfang) setup. I have the board vertically, as if on the side of the camera.
+// The connector is towards the rear, the board is on the left hand side of the camera with
+// the MPU6050's top facing towards it.
+//static const MPU_6050_PLANE_t MPU_6050_PLANE = CAMERA_SIDE;
+//static const MPU_6050_TURN_t MPU_6050_TURN = NO_TURN;
+//static const MPU_6050_FLIP_t MPU_6050_FLIP = NO_FLIP;
+
+// Here is the default setting: Board as if on top of the camera, with the MPU6050's top
+// facing up and the connector to the right.
+static const MPU_6050_PLANE_t MPU_6050_PLANE = CAMERA_TOP;
+static const MPU_6050_TURN_t MPU_6050_TURN = NO_TURN;
+static const MPU_6050_FLIP_t MPU_6050_FLIP = NO_FLIP;
 
 int MPU6050_Init(void)
 {
@@ -210,6 +225,8 @@ void MPU6050_get(int cmd, uint8_t read[6])
                 I2C1_NoAck();
                 I2C1_Stop();
             }
+        } else {
+        	I2C1_Stop();
         }
     }
 }
@@ -217,40 +234,137 @@ void MPU6050_get(int cmd, uint8_t read[6])
 void MPU6050_ACC_get(float *AccData)
 {
     uint8_t read[6];
-
+    float accDataUntransformed[3];
     MPU6050_get(0x3B, read);
-
     if (I2Cerror == 0)
     {
-        float accScaleFactor = 7505.747116f;// 8000.0f;//     2.0F/131.0F * M_PI/180.0F;
+    	accDataUntransformed[0] = (short)((read[0] << 8) | read[1]);
+    	accDataUntransformed[1] = (short)((read[2] << 8) | read[3]);
+    	accDataUntransformed[2] = (short)((read[4] << 8) | read[5]);
 
-        AccData[X_AXIS] = (short)((read[0] << 8) | read[1]);
-        AccData[Y_AXIS] = (short)((read[2] << 8) | read[3]);
-        AccData[Z_AXIS] = (short)((read[4] << 8) | read[5]);
+        // The chip has its topside in which plane (3 possibilities)
+        switch(MPU_6050_PLANE) {
+        case CAMERA_TOP:
+        	AccData[X_AXIS] = -accDataUntransformed[0];
+        	AccData[Y_AXIS] =  accDataUntransformed[1];
+        	AccData[Z_AXIS] =  accDataUntransformed[2];
+        	break;
+        case CAMERA_SIDE:
+        	// TODO! Signs.
+        	AccData[X_AXIS] =  accDataUntransformed[2];
+        	AccData[Y_AXIS] = -accDataUntransformed[0];
+        	AccData[Z_AXIS] =  accDataUntransformed[1];
+        	break;
+        case FOCAL_PLANE:
+        	// TODO! Not sure the signs are right!
+        	AccData[X_AXIS] = accDataUntransformed[1];
+        	AccData[Y_AXIS] = accDataUntransformed[2];
+        	AccData[Z_AXIS] = accDataUntransformed[0];
+        	break;
+        }
+
+        switch(MPU_6050_FLIP) {
+        case NO_FLIP: break;
+        case FLIPPED:
+        	// Z acc gets reversed and (assuming the flip is around X axis) X.
+        	accDataUntransformed[0] = -accDataUntransformed[0];
+        	accDataUntransformed[2] = -accDataUntransformed[2];
+        	break;
+        }
+
+        float tmp;
+        // The chip has the dot at which corner (4 possibilities)
+        switch(MPU_6050_TURN) {
+        case NO_TURN: break;
+        case CW90:
+        	tmp = accDataUntransformed[0];
+        	accDataUntransformed[0] = accDataUntransformed[1];
+        	accDataUntransformed[1] = -tmp;
+        	break;
+        case CW180:
+        	accDataUntransformed[0] = -accDataUntransformed[0];
+        	accDataUntransformed[1] = -accDataUntransformed[1];
+    		break;
+        case CW270:
+    		tmp = accDataUntransformed[0];
+    		accDataUntransformed[0] = -accDataUntransformed[1];
+    		accDataUntransformed[1] = tmp;
+    		break;
+        }
     }
 }
 
 void MPU6050_Gyro_get(float *GyroData)
 {
     uint8_t read[6];
-
     MPU6050_get(0x43, read);
 
-    if (I2Cerror == 0)
+    if (I2Cerror == 0) // TODO: We need to deal with a jammed I2C bus eventually.
     {
+        gyroADC[0] = (short)((read[0] << 8) | read[1]);
+        gyroADC[1] = (short)((read[2] << 8) | read[3]);
+        gyroADC[2] = (short)((read[4] << 8) | read[5]);
+
         float gyroScaleFactor = 7505.747116f;// 8000.0f;//     2.0F/131.0F * M_PI/180.0F;
+        float gyroDataUntransformed[3];
+        uint8_t i;
 
-        gyroADC_ROLL  = (short)((read[0] << 8) | read[1]);
-        GyroData[X_AXIS] = ((float)gyroADC_ROLL - gyroADC_ROLL_offset) / gyroScaleFactor;
-        // GyroData[X_AXIS] = ((float)gyroADC_ROLL  - gyroADC_ROLL_offset)  * gyroScaleFactor;
+        for (i=0; i<3; i++) {
+        	gyroDataUntransformed[i] = ((float)gyroADC[i] - gyroADCOffset[i]) / gyroScaleFactor;
+        }
 
-        gyroADC_PITCH = (short)((read[2] << 8) | read[3]);
-        GyroData[Y_AXIS] = ((float)gyroADC_PITCH - gyroADC_PITCH_offset) / gyroScaleFactor;
-        // GyroData[Y_AXIS] = ((float)gyroADC_PITCH - gyroADC_PITCH_offset) * gyroScaleFactor;
+        // Transform stuff depending on hardware orientation.
+        // There are 24 possible orientations (at right angles), all are covered here (2*4*3).
+        // Whether all the transforms are consistent with those for acceleration - hmmm :) TBD.
 
-        gyroADC_YAW   = (short)((read[4] << 8) | read[5]);
-        GyroData[Z_AXIS] = ((float)gyroADC_YAW - gyroADC_YAW_offset) / gyroScaleFactor;
-        // GyroData[Z_AXIS] = ((float)gyroADC_YAW   - gyroADC_YAW_offset)   * gyroScaleFactor;
+        // The chip has its topside in which plane (3 possibilities)
+        switch(MPU_6050_PLANE) {
+        case CAMERA_TOP:
+        	GyroData[PITCH] = gyroDataUntransformed[0];
+        	GyroData[ROLL]  = gyroDataUntransformed[1];
+        	GyroData[YAW]   = gyroDataUntransformed[2];
+        	break;
+        case CAMERA_SIDE:
+        	GyroData[PITCH] = -gyroDataUntransformed[2];
+        	GyroData[ROLL]  = -gyroDataUntransformed[0];
+        	GyroData[YAW]   = gyroDataUntransformed[1];
+        	break;
+        case FOCAL_PLANE:
+        	GyroData[PITCH] = gyroDataUntransformed[1];
+        	GyroData[ROLL]  = gyroDataUntransformed[2];
+        	GyroData[YAW]   = gyroDataUntransformed[0];
+        	break;
+        }
+
+        // Is the chip upside down (2 possibilities)
+        switch(MPU_6050_FLIP) {
+        case NO_FLIP: break;
+        case FLIPPED:
+        	// Z gyro gets reversed and (assuming the flip is around X axis) Y.
+    		gyroDataUntransformed[1] = -gyroDataUntransformed[1];
+    		gyroDataUntransformed[2] = -gyroDataUntransformed[2];
+    		break;
+        }
+
+        float tmp;
+        // The chip has the dot at which corner (4 possibilities)
+        switch(MPU_6050_TURN) {
+        case NO_TURN: break;
+        case CW90:
+        	tmp = gyroDataUntransformed[0];
+        	gyroDataUntransformed[0] = gyroDataUntransformed[1];
+        	gyroDataUntransformed[1] = -tmp;
+        	break;
+        case CW180:
+    		gyroDataUntransformed[0] = -gyroDataUntransformed[0];
+    		gyroDataUntransformed[1] = -gyroDataUntransformed[1];
+    		break;
+        case CW270:
+    		tmp = gyroDataUntransformed[0];
+    		gyroDataUntransformed[0] = -gyroDataUntransformed[1];
+    		gyroDataUntransformed[1] = tmp;
+    		break;
+        }
     }
 }
 
@@ -258,21 +372,25 @@ void MPU6050_Gyro_calibration(void)
 {
     uint8_t i;
     int loops = 150;
-    float InitGyroData[3];
+
+    float dummy[3];
+
+    gyroADCOffset[0] = 0;
+    gyroADCOffset[1] = 0;
+    gyroADCOffset[2] = 0;
 
     for (i = 0; i < loops; i++)
     {
-        MPU6050_Gyro_get(InitGyroData);
-
-        gyroADC_ROLL_offset  += gyroADC_ROLL;
-        gyroADC_PITCH_offset += gyroADC_PITCH;
-        gyroADC_YAW_offset   += gyroADC_YAW;
+        MPU6050_Gyro_get(dummy);
+        gyroADCOffset[0] += gyroADC[0];
+        gyroADCOffset[1] += gyroADC[1];
+        gyroADCOffset[2] += gyroADC[2];
         Delay_ms(2);
     }
 
-    gyroADC_ROLL_offset  /= loops;
-    gyroADC_PITCH_offset /= loops;
-    gyroADC_YAW_offset   /= loops;
+    gyroADCOffset[0] /= loops;
+    gyroADCOffset[1] /= loops;
+    gyroADCOffset[2] /= loops;
 
     Delay_ms(5);
 }

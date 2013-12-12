@@ -18,6 +18,24 @@
 #define MPU6050_ADDR (0xD0 + 1)
 #endif
 
+typedef enum {
+	CAMERA_TOP,
+	CAMERA_SIDE,
+	FOCAL_PLANE
+} MPU_6050_PLANE_t;
+
+typedef enum {
+	NO_TURN,
+	CW90,
+	CW180,
+	CW270
+} MPU_6050_TURN_t;
+
+typedef enum {
+	NO_FLIP,
+	FLIPPED
+} MPU_6050_FLIP_t;
+
 int MPU6050_Init(void);
 void MPU6050_Gyro_get(float *GyroData);
 void MPU6050_ACC_get(float *AccData);

@@ -177,9 +177,9 @@ void rotateV(float* v, float* rates, float dt) {
 	  tmp[i] = v[i];
   }
 
-  v[X_AXIS] -= deltas[PITCH] * tmp[Z_AXIS] - deltas[YAW]   * tmp[Y_AXIS];
-  v[Y_AXIS] += deltas[ROLL] *  tmp[Z_AXIS] + deltas[YAW]   * tmp[X_AXIS];
-  v[Z_AXIS] += deltas[PITCH] * tmp[X_AXIS] - deltas[ROLL]  * tmp[Y_AXIS];
+  v[Z_AXIS] -= deltas[ROLL]  * tmp[X_AXIS] + deltas[PITCH] * tmp[Y_AXIS];
+  v[X_AXIS] += deltas[ROLL]  * tmp[Z_AXIS] - deltas[YAW]   * tmp[Y_AXIS];
+  v[Y_AXIS] += deltas[PITCH] * tmp[Z_AXIS] + deltas[YAW]   * tmp[X_AXIS];
 }
 
 void MergeAcc(float alpha) {
@@ -200,11 +200,12 @@ void ComputeEulerAngles(float dt) {
     // Normal attitude angles come from the rotation from global in order yaw, pitch, roll (roll on pitch on yaw)
     // Camera gimbals are typically pitch on roll on yaw. Not the same!
     // Therefore, we reverse the definitions and domains of pitch and roll. Formulas too.
-	CameraOrient[ROLL] = -atan2(ApproxGravityVector[X_AXIS] ,
+	CameraOrient[ROLL] = atan2(ApproxGravityVector[X_AXIS] ,
 			sqrtf(ApproxGravityVector[Z_AXIS]*ApproxGravityVector[Z_AXIS] +
 					ApproxGravityVector[Y_AXIS]*ApproxGravityVector[Y_AXIS]));
 	CameraOrient[PITCH] = atan2(ApproxGravityVector[Y_AXIS], ApproxGravityVector[Z_AXIS]);
-	CameraOrient[YAW] -= GyroData[YAW] * dt; //Yaw. TODO: High pass filter this sucker.
+	// TODO: Completely wrong. This is the integral of the sensor yaw rate. NOT the gimbal yaw.
+	CameraOrient[YAW] -= GyroData[YAW] * dt;
 }
 
 void Init_Orientation()
@@ -227,7 +228,7 @@ void Update_Orientation(float dt) {
 	// First, apply small-angle approximation to our estimated gravity vector:
 	rotateV(ApproxGravityVector, GyroData, dt);
 	// Then complementary-filter that together with the acc. meter's data:
-	MergeAcc(0.001); // TODO: Make this magic number configurable It is very useful to
+	MergeAcc(0.002); // TODO: Make this magic number configurable It is very useful to
 	// have different values to choose from. High->IMU returns quickly to a good attitude
 	// after having been knocked and gyros saturated. Low->less sensitive to lateral accelerations,
 	// such as a fixed-wing plane at high power or in a turn.
@@ -345,7 +346,7 @@ void engineProcess(float dt)
     printcounter++;
 
     //if (printcounter >= 500 || dt > 0.0021)
-    if (printcounter >= 500)
+    if (printcounter >= 200)
     {
         if (debugPrint)
         {
@@ -357,7 +358,7 @@ void engineProcess(float dt)
         if (debugSense)
         {
             print(" dt %f, AccData: %8.3f | %8.3f | %8.3f, GyroData %7.3f | %7.3f | %7.3f \r\n",
-                  dt, AccData[X_AXIS], AccData[Y_AXIS], AccData[Z_AXIS], GyroData[X_AXIS], GyroData[Y_AXIS], GyroData[Z_AXIS]);
+                  dt, AccData[X_AXIS], AccData[Y_AXIS], AccData[Z_AXIS], GyroData[ROLL], GyroData[PITCH], GyroData[YAW]);
         }
 
         if (debugPerf)
